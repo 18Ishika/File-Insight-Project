@@ -1,46 +1,7 @@
-# app.py
-from flask import Flask, request, render_template, redirect, url_for, flash
-import os
-
-app = Flask(__name__)
-app.secret_key = 'supersecretkey'
-
-# Set the folder to save uploaded files
-UPLOAD_FOLDER = 'uploads'
-app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-
-# Allow only certain file types (optional)
-ALLOWED_EXTENSIONS = {'csv', 'txt', 'xlsx'}
-
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-@app.route('/')
-def index():
-    return render_template('index.html')
-@app.route('/upload', methods=['POST'])
-def upload_file():
-    if 'file' not in request.files:
-        return "No file part", 400
-    file = request.files['file']
-    if file.filename == '':
-        return "No selected file", 400
-    if file and allowed_file(file.filename):
-        filename = file.filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(file_path)
-        ext=filename.rsplit('.', 1)[1].lower()
-        flash('File successfully uploaded','success')
-        result = preprocess_structured_file(file_path, ext)
-
-        print("Original shape:", result["original_shape"])
-        print("Processed shape:", result["processed_shape"])
-        print("Columns:", result["columns"])
-        print("Missing values:", result["missing_summary"])
-        return redirect(url_for('index'))
-    else:
-        return "File type not allowed", 400
 import pandas as pd
 import re
+import os
+from ai.describer import describe_data
 
 def preprocess_structured_file(file_path, ext):
     # ---------- Load file safely ----------
@@ -57,7 +18,6 @@ def preprocess_structured_file(file_path, ext):
             raise ValueError("Unable to read CSV file with supported encodings")
     else:
         df = pd.read_excel(file_path, header=0)
-
     # Drop fully empty columns immediately
     df = df.dropna(axis=1, how='all')
 
@@ -88,6 +48,9 @@ def preprocess_structured_file(file_path, ext):
     categorical_cols = df.select_dtypes(exclude="number").columns.tolist()
 
     processed_shape = df.shape
+    top5=df.head().to_dict(orient="records")
+    summary=describe_data(list(df.columns), top5)
+    
 
     # ---------- Save cleaned file ----------
     if not os.path.exists('processed'):
@@ -109,10 +72,51 @@ def preprocess_structured_file(file_path, ext):
         "numeric_columns": numeric_cols,
         "categorical_columns": categorical_cols,
         "columns": list(df.columns),
-        "cleaned_file_path": proc_file_path
+        "cleaned_file_path": proc_file_path,
+        "top5": top5,
+        "summary": summary
     }
 
-if __name__ == '__main__':
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER)
-    app.run(debug=True)
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.pagesizes import A4
+
+def generate_pdf_report(result,original_filename):
+    name, _ = os.path.splitext(original_filename)
+    report_filename = f"report_{name}.pdf"
+
+    output_path = os.path.join("reports", report_filename)
+
+    summary = result["summary"]
+    changes = [
+        f"Removed {result['removed_duplicates']} duplicate rows.",
+        f"Removed {result['empty_rows_removed']} empty rows.",
+        f"Removed {result['empty_columns']} empty columns."
+    ]
+    sample_data = result['top5']
+    doc = SimpleDocTemplate(output_path, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elements = []
+
+    elements.append(Paragraph("📊 Data Cleaning Report", styles["Title"]))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph("<b>Dataset Summary</b>", styles["Heading2"]))
+    elements.append(Paragraph(summary, styles["Normal"]))
+    elements.append(Spacer(1, 12))
+
+    elements.append(Paragraph("<b>Cleaning Actions</b>", styles["Heading2"]))
+    for change in changes:
+        elements.append(Paragraph(f"- {change}", styles["Normal"]))
+
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph("<b>Sample Cleaned Data</b>", styles["Heading2"]))
+
+    headers = list(sample_data[0].keys())
+    rows = [list(row.values()) for row in sample_data]
+    table_data = [headers] + rows
+    table = Table(table_data)
+
+    elements.append(table)
+
+    doc.build(elements)
