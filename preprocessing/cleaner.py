@@ -77,46 +77,105 @@ def preprocess_structured_file(file_path, ext):
         "summary": summary
     }
 
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+import os
 
-def generate_pdf_report(result,original_filename):
+
+def generate_pdf_report(result, original_filename):
+    os.makedirs("reports", exist_ok=True)
+
     name, _ = os.path.splitext(original_filename)
     report_filename = f"report_{name}.pdf"
-
     output_path = os.path.join("reports", report_filename)
 
-    summary = result["summary"]
-    changes = [
-        f"Removed {result['removed_duplicates']} duplicate rows.",
-        f"Removed {result['empty_rows_removed']} empty rows.",
-        f"Removed {result['empty_columns']} empty columns."
-    ]
-    sample_data = result['top5']
-    doc = SimpleDocTemplate(output_path, pagesize=A4)
+    doc = SimpleDocTemplate(
+        output_path,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
+
     styles = getSampleStyleSheet()
     elements = []
 
-    elements.append(Paragraph("📊 Data Cleaning Report", styles["Title"]))
-    elements.append(Spacer(1, 12))
+    # ---------------- Title ----------------
+    elements.append(Paragraph("Data Cleaning Report", styles["Title"]))
+    elements.append(Spacer(1, 16))
 
-    elements.append(Paragraph("<b>Dataset Summary</b>", styles["Heading2"]))
-    elements.append(Paragraph(summary, styles["Normal"]))
-    elements.append(Spacer(1, 12))
+    # ---------------- Dataset Overview ----------------
+    elements.append(Paragraph("Dataset Overview", styles["Heading2"]))
+    overview_table = Table(
+        [
+            ["Metric", "Value"],
+            ["Original Shape", str(result["original_shape"])],
+            ["Processed Shape", str(result["processed_shape"])],
+            ["Duplicate Rows Removed", result["removed_duplicates"]],
+            ["Rows with Missing Values Removed", result["rows_with_missing_removed"]],
+            ["Empty Columns Removed", result["empty_columns"]],
+        ],
+        colWidths=[250, 200],
+    )
 
-    elements.append(Paragraph("<b>Cleaning Actions</b>", styles["Heading2"]))
-    for change in changes:
-        elements.append(Paragraph(f"- {change}", styles["Normal"]))
+    overview_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("ALIGN", (1, 1), (-1, -1), "LEFT"),
+    ]))
 
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph("<b>Sample Cleaned Data</b>", styles["Heading2"]))
+    elements.append(overview_table)
+    elements.append(Spacer(1, 16))
 
-    headers = list(sample_data[0].keys())
-    rows = [list(row.values()) for row in sample_data]
-    table_data = [headers] + rows
-    table = Table(table_data)
+    # ---------------- Summary ----------------
+    elements.append(Paragraph("AI Summary", styles["Heading2"]))
+    elements.append(Paragraph(result["summary"], styles["Normal"]))
+    elements.append(Spacer(1, 16))
 
-    elements.append(table)
+    # ---------------- Columns ----------------
+    elements.append(Paragraph("Column Breakdown", styles["Heading2"]))
+    col_table = Table(
+        [
+            ["Type", "Columns"],
+            ["Numeric Columns", ", ".join(result["numeric_columns"]) or "None"],
+            ["Categorical Columns", ", ".join(result["categorical_columns"]) or "None"],
+        ],
+        colWidths=[150, 300],
+    )
+
+    col_table.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+
+    elements.append(col_table)
+    elements.append(Spacer(1, 16))
+
+    # ---------------- Sample Data ----------------
+    elements.append(Paragraph("Sample Cleaned Data (Top 5 Rows)", styles["Heading2"]))
+
+    sample_data = result["top5"]
+    if sample_data:
+        headers = list(sample_data[0].keys())
+        rows = [list(row.values()) for row in sample_data]
+
+        sample_table = Table([headers] + rows, repeatRows=1)
+        sample_table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ("FONT", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]))
+
+        elements.append(sample_table)
+    else:
+        elements.append(Paragraph("No data available after cleaning.", styles["Normal"]))
 
     doc.build(elements)
+    return output_path

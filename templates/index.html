@@ -38,6 +38,20 @@
         button:hover {
             background: #4338ca;
         }
+
+        .download-btn {
+            display: inline-block;
+            margin-top: 15px;
+            padding: 10px 20px;
+            background: #16a34a;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+        }
+
+        .download-btn:hover {
+            background: #15803d;
+        }
     </style>
 </head>
 <body>
@@ -50,21 +64,31 @@
         <input type="file" name="file" required>
         <br>
         <button type="submit">Upload</button>
-        {% with messages = get_flashed_messages(with_categories=true) %}
-  {% if messages %}
-    <div id="flash-messages">
-      {% for category, message in messages %}
-        <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
-                    background-color: {% if category == 'success' %}#d4edda{% else %}#f8d7da{% endif %}; 
-                    color: {% if category == 'success' %}#155724{% else %}#721c24{% endif %};
-                    border: 1px solid {% if category == 'success' %}#c3e6cb{% else %}#f5c6cb{% endif %};">
-          {{ message }}
-        </div>
-      {% endfor %}
-    </div>
-  {% endif %}
-{% endwith %}
     </form>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div id="flash-messages" style="margin-top: 15px;">
+          {% for category, message in messages %}
+            <div style="padding: 10px; margin-bottom: 10px; border-radius: 5px; 
+                        background-color: {% if category == 'success' %}#d4edda{% else %}#f8d7da{% endif %}; 
+                        color: {% if category == 'success' %}#155724{% else %}#721c24{% endif %};
+                        border: 1px solid {% if category == 'success' %}#c3e6cb{% else %}#f5c6cb{% endif %};">
+              {{ message }}
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Download PDF option -->
+    {% if report_filename %}
+        <a href="{{ url_for('download_report', filename=report_filename) }}"
+           class="download-btn">
+           Download PDF Report
+        </a>
+    {% endif %}
 </div>
 
 </body>
