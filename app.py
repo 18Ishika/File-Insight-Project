@@ -76,4 +76,5 @@ def download_report(filename):
 if __name__ == '__main__':
     os.makedirs(UPLOAD_FOLDER, exist_ok=True)
     os.makedirs(REPORT_FOLDER, exist_ok=True)
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=True)
+
