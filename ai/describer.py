@@ -10,7 +10,7 @@ model = ChatGoogleGenerativeAI(
     google_api_key=os.getenv("GOOGLE_API_KEY")
 )
 
-def describe_csv_data(columns, sample_data):
+def describe_data(columns, sample_data):
     prompt = f"""
 You are a professional data analyst.
 
@@ -36,7 +36,3 @@ Sample Rows:
 
     response = model.invoke(prompt)
     return response.content
-
-def describe_text_data(text):
-    prompt = f"""
-You are a professional data analyst.
